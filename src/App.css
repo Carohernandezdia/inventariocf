@@ -1,0 +1,152 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, Helvetica, sans-serif;
+  background: #FFFFFF;
+  color: #111417;
+}
+
+.pantalla-login {
+  max-width: 380px;
+  margin: 80px auto;
+  padding: 24px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  text-align: center;
+}
+
+.pantalla-login h1 {
+  font-size: 20px;
+  margin-bottom: 4px;
+}
+
+.pantalla-login p {
+  color: #5B6470;
+  font-size: 13px;
+  margin-bottom: 18px;
+}
+
+.pantalla-login input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #E4E7EB;
+  border-radius: 8px;
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+
+.btn-comenzar {
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: 8px;
+  background: #FF6600;
+  color: white;
+  font-weight: bold;
+  font-size: 16px;
+  cursor: pointer;
+  margin-top: 8px;
+}
+
+.btn-comenzar:hover {
+  background: #E65C00;
+}
+
+.btn-comenzar:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.encabezado-user {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  padding: 12px 16px;
+  background: #111417;
+  color: #9aa3ad;
+}
+
+.encabezado-user button {
+  padding: 6px 12px;
+  font-size: 12px;
+  background: transparent;
+  border: 1px solid #444;
+  border-radius: 6px;
+  color: white;
+  cursor: pointer;
+}
+
+.tabs {
+  display: flex;
+  background: white;
+  border-bottom: 1px solid #E4E7EB;
+}
+
+.tab {
+  flex: 1;
+  padding: 12px 4px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: bold;
+  color: #5B6470;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+}
+
+.tab.active {
+  color: #FF6600;
+  border-color: #FF6600;
+}
+.pantalla-login {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 24px;
+  background: white;
+}
+
+.logo-orcore {
+  font-size: 40px;
+  font-weight: 900;
+  margin-bottom: 60px;
+}
+
+.logo-or {
+  color: #111417;
+}
+
+.logo-core {
+  color: #FF6600;
+}
+
+.tarjeta-login {
+  width: 100%;
+  max-width: 380px;
+  border: 1px solid #E4E7EB;
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 60px;
+}
+
+.etiqueta-login {
+  font-size: 14px;
+  color: #111417;
+  display: block;
+  margin-bottom: 6px;
+}
+
+.tarjeta-login input {
+  width: 100%;
+  padding: 14px;
+  border: 1px solid #E4E7EB;
+  border-radius: 24px;
+  font-size: 16px;
+  margin-bottom: 16px;
+}
