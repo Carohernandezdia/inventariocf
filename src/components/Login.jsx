@@ -1,9 +1,15 @@
 // =====================================================================
 // Pantalla de entrada: nombre de la persona + codigo de acceso del negocio.
 // El nombre queda guardado en cada escaneo para saber quien envio que.
+// Estilo OrCore: igual al login de las demas aplicaciones (banner blanco con logo grande + tarjeta centrada).
+// Los estilos estan en login.css (se importa aqui abajo).
 // =====================================================================
 import { useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import '../login.css'
+
+// Logo de OrCore (PNG transparente, en src/assets)
+import logo from '../assets/logo-orcore.png'
 
 function Login({ onLogin }) {
   const [nombre, setNombre] = useState('')
@@ -61,34 +67,54 @@ function Login({ onLogin }) {
     onLogin(sesion)
   }
 
+  // Misma estructura que el login de las otras aplicaciones de OrCore:
+  // fondo blanco, banner alto con el logo grande arriba, y la tarjeta centrada debajo.
   return (
-    <div className="pantalla-login">
-      <div className="logo-orcore">
-        <span className="logo-or">Or</span>
-        <span className="logo-core">Core</span>
+    <div className="login-pagina">
+
+      {/* Banner alto (blanco) con el logo pegado abajo */}
+      <div className="login-banner">
+        <img src={logo} alt="OrCore" />
       </div>
-      <div className="tarjeta-login">
-        <label className="etiqueta-login">Tu nombre</label>
-        <input
-          type="text"
-          placeholder="Tu nombre"
-          value={nombre}
-          onChange={(e) => setNombre(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') entrar() }}
-        />
-        <label className="etiqueta-login">Código de acceso</label>
-        <input
-          type="text"
-          placeholder="Código de acceso"
-          value={codigo}
-          onChange={(e) => setCodigo(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') entrar() }}
-        />
-        {error && <p style={{ color: '#DC2626', fontSize: 13, marginTop: 4 }}>{error}</p>}
-        <button className="btn-comenzar" onClick={entrar} disabled={cargando}>
-          {cargando ? 'Verificando...' : 'Ingresar'}
-        </button>
+
+      {/* Este contenedor ocupa el resto de la pantalla y centra la tarjeta */}
+      <div className="login-centro">
+        <div className="login-ancho">
+          <form
+            className="login-tarjeta"
+            onSubmit={(e) => { e.preventDefault(); entrar() }}
+          >
+            <div>
+              <label className="login-etiqueta">Tu nombre</label>
+              <input
+                className="login-campo"
+                type="text"
+                placeholder="Tu nombre"
+                value={nombre}
+                onChange={(e) => setNombre(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="login-etiqueta">Código de acceso</label>
+              <input
+                className="login-campo"
+                type="text"
+                placeholder="Código de acceso"
+                value={codigo}
+                onChange={(e) => setCodigo(e.target.value)}
+              />
+            </div>
+
+            {error && <p className="login-error">{error}</p>}
+
+            <button type="submit" className="login-boton" disabled={cargando}>
+              {cargando ? 'Verificando...' : 'Ingresar'}
+            </button>
+          </form>
+        </div>
       </div>
+
     </div>
   )
 }

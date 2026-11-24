@@ -1,0 +1,50 @@
+/* =====================================================================
+   Pantalla de entrada (Login) - mismo diseño que el login de las otras aplicaciones de OrCore.
+   Medidas copiadas de sus clases (banner-completo-alto, card, field, field-label, btn-primary).
+   Colores: naranja #FF6600 (hover #E65C00), azul oscuro #111417, borde #E4E7EB,
+   texto deshabilitado #A0A7B0, error #DC2626.  Letra: Inter.
+   ===================================================================== */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* Pagina: fondo blanco; apila el banner y el contenedor de la tarjeta en columna */
+.login-pagina {
+  min-height: 100vh; background: white; display: flex; flex-direction: column;
+  font-family: 'Inter', system-ui, sans-serif; color: #111417;
+}
+
+/* Banner alto: blanco, logo grande (160 px de alto) pegado abajo */
+.login-banner {
+  background: white; padding: 40px 20px 8px; min-height: 30vh;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+}
+.login-banner img { height: 160px; width: auto; }
+
+/* Ocupa lo que sobra de pantalla y centra la tarjeta */
+.login-centro { flex: 1; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.login-ancho { width: 100%; max-width: 384px; }
+
+/* Tarjeta */
+.login-tarjeta {
+  background: white; border-radius: 12px; border: 1px solid #E4E7EB; padding: 20px;
+  box-shadow: 0 1px 3px rgba(17, 20, 23, 0.08);
+  display: flex; flex-direction: column; gap: 16px;
+}
+
+/* Campos */
+.login-etiqueta { display: block; font-size: 14px; font-weight: 500; color: #111417; margin-bottom: 6px; }
+.login-campo {
+  width: 100%; box-sizing: border-box; border: 1px solid #E4E7EB; border-radius: 8px;
+  padding: 10px 12px; font-size: 16px; font-family: inherit; color: #111417; background: white;
+  outline: none; transition: all 150ms;
+}
+.login-campo::placeholder { color: #A0A7B0; }
+.login-campo:focus { box-shadow: 0 0 0 2px #FF6600; border-color: transparent; }
+.login-error { font-size: 14px; color: #DC2626; margin: 0; }
+
+/* Boton Ingresar */
+.login-boton {
+  width: 100%; background: #FF6600; color: white; font-size: 14px; font-weight: 500; font-family: inherit;
+  padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; transition: background-color 150ms;
+}
+.login-boton:hover { background: #E65C00; }
+.login-boton:disabled { opacity: 0.6; cursor: not-allowed; }

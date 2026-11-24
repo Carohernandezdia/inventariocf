@@ -1,17 +1,20 @@
 // =====================================================================
-// Pantalla "Importar" (solo admin): sube el Excel de productos y vacia todo para empezar de cero.
+// Pantalla "Importar" (solo admin): sube el Excel de productos.
+// Dos modos: AGREGAR Y ACTUALIZAR (no borra nada) o REEMPLAZAR (borra las cantidades del Sheets).
 // Columnas del Excel (primera fila): codigo, nombre, precio_de_compra
 // Opcionales: existencia, codigo_padre
 // =====================================================================
 import { useState } from 'react'
 import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabaseClient'
-import { limpiarCola } from '../lib/colaSheets'
+import { generarRespaldo } from '../lib/respaldo'
 
 function Importar({ negocio }) {
   const [filas, setFilas] = useState(null)
   const [mensaje, setMensaje] = useState('')
   const [ocupado, setOcupado] = useState(false)
+  const [respaldoHecho, setRespaldoHecho] = useState(false) // para borrar o reemplazar hay que bajar el respaldo primero
+  const [modo, setModo] = useState('agregar') // 'agregar' (seguro) o 'reemplazar' (borra cantidades del Sheets)
 
   // Lee el archivo Excel/CSV y revisa que tenga las columnas correctas
   function leerArchivo(e) {
@@ -42,36 +45,15 @@ function Importar({ negocio }) {
     lector.readAsArrayBuffer(archivo)
   }
 
-  // Borra TODO para empezar un inventario nuevo: productos, historial de todos y cantidades del Sheets
-  async function vaciarTodo() {
-    const aviso =
-      '¿Seguro? Esto borra TODO de ' + negocio.nombre_negocio + ':\n' +
-      '- los productos\n- el historial de todas las personas\n- las cantidades de Bodega y Tienda en Google Sheets\n\n' +
-      'No se puede deshacer.'
-    if (!confirm(aviso)) return
-
+  // Baja el respaldo en Excel. Sin esto no se deja borrar ni reemplazar (asi nadie pierde el historial por olvido).
+  async function bajarRespaldo() {
     setOcupado(true)
     try {
-      setMensaje('Borrando productos...')
-      let r = await supabase.from('productos').delete().eq('establecimiento', negocio.codigo_negocio)
-      if (r.error) throw new Error('productos: ' + r.error.message)
-
-      setMensaje('Borrando historial...')
-      r = await supabase.from('movimientos').delete().eq('negocio', negocio.codigo_negocio)
-      if (r.error) throw new Error('historial: ' + r.error.message)
-
-      setMensaje('Limpiando Google Sheets...')
-      limpiarCola(negocio.codigo_negocio) // descarta envios pendientes de este celular
-      const respuesta = await fetch(negocio.apps_script_url, {
-        method: 'POST',
-        body: JSON.stringify({ accion: 'vaciarTodo' })
-      })
-      const datos = await respuesta.json()
-      if (datos.error) throw new Error('Sheets: ' + datos.error)
-
-      setMensaje('✓ Todo quedó en ceros. Ahora sube el archivo nuevo.')
+      const r = await generarRespaldo(negocio, setMensaje)
+      setRespaldoHecho(true)
+      setMensaje('✓ Respaldo descargado: ' + r.archivo + '. Ahora sí puedes borrar o reemplazar.')
     } catch (e) {
-      setMensaje('Error al vaciar: ' + e.message)
+      setMensaje('No se pudo generar el respaldo: ' + e.message)
     }
     setOcupado(false)
   }
@@ -89,6 +71,13 @@ function Importar({ negocio }) {
     if (vacias.length > 0) {
       setMensaje('⚠️ Hay ' + vacias.length + ' fila(s) con código o nombre vacío (por ejemplo la fila ' + vacias[0] + ' del Excel). Corrígelas y vuelve a subir.')
       return
+    }
+
+    // En modo reemplazar el Sheets se limpia: exige el respaldo y pide escribir REEMPLAZAR para evitar accidentes
+    if (modo === 'reemplazar') {
+      if (!respaldoHecho) { setMensaje('⚠️ Primero toca "Descargar respaldo" (así no pierdes el historial).'); return }
+      const ok = prompt('El modo REEMPLAZAR borra las cantidades que ya estén en Bodega y Tienda del Sheets.\n\nPara continuar escribe la palabra REEMPLAZAR:')
+      if (ok === null || ok.trim().toUpperCase() !== 'REEMPLAZAR') { setMensaje('No se subió nada.'); return }
     }
 
     setOcupado(true)
@@ -135,7 +124,8 @@ function Importar({ negocio }) {
         const respuesta = await fetch(negocio.apps_script_url, {
           method: 'POST',
           body: JSON.stringify({
-            accion: 'importarProductos',
+            // agregar = 'actualizarProductos' (no borra nada); reemplazar = 'importarProductos' (limpia y escribe)
+            accion: modo === 'agregar' ? 'actualizarProductos' : 'importarProductos',
             primerBloque: i === 0,
             productos: bloqueSheets.map((f) => ({
               codigo: f.codigo,
@@ -173,15 +163,26 @@ function Importar({ negocio }) {
           <br />Sin códigos repetidos y sin celdas vacías.
         </p>
 
+        <div style={{ marginBottom: 12, fontSize: 13 }}>
+          <label style={{ display: 'block', marginBottom: 6 }}>
+            <input type="radio" checked={modo === 'agregar'} onChange={() => setModo('agregar')} />{' '}
+            <b>Agregar y actualizar</b> (recomendado): agrega los productos nuevos y cambia el precio de los que ya existen. No borra nada.
+          </label>
+          <label style={{ display: 'block' }}>
+            <input type="radio" checked={modo === 'reemplazar'} onChange={() => setModo('reemplazar')} />{' '}
+            <b>Reemplazar</b>: deja el Sheets solo con este archivo y borra las cantidades. Solo antes de empezar a contar.
+          </label>
+        </div>
+
         <input type="file" accept=".xlsx,.xls,.csv" onChange={leerArchivo} style={{ marginBottom: 12 }} />
         {mensaje && <p style={{ fontSize: 13, color: '#5B6470' }}>{mensaje}</p>}
 
         <button
-          onClick={vaciarTodo}
+          onClick={bajarRespaldo}
           disabled={ocupado}
-          style={{ width: '100%', padding: 12, marginBottom: 8, background: 'white', border: '1px solid #DC2626', color: '#DC2626', borderRadius: 8 }}
+          style={{ width: '100%', padding: 12, marginBottom: 8, background: 'white', border: '1px solid #FF6600', color: '#FF6600', borderRadius: 8, fontWeight: 'bold' }}
         >
-          🗑️ Borrar TODO (productos, historial y Sheets) para empezar de cero
+          💾 Descargar respaldo (obligatorio antes de reemplazar)
         </button>
 
         <button

@@ -1,0 +1,120 @@
+/* =====================================================================
+   Estilos de las pantallas de administrador (Inicio, Reporte, Gestion, Configuracion).
+   Lineamientos OrCore: Inter, azul oscuro #111417, naranja #FF6600, cian #00CFFF,
+   fondo #F7F8FA, bordes #E4E7EB, texto secundario #5B6470.
+   Pensado para celular Y computador.
+   ===================================================================== */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+
+body { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; background: #F7F8FA; color: #111417; }
+button, input { font-family: inherit; }
+
+/* ---------- Titulos de pantalla ---------- */
+.pantalla-cabeza { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+.pantalla-titulo { font-size: 24px; font-weight: 600; color: #111417; }
+.boton-chico {
+  display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; background: white;
+  border: 1px solid #E4E7EB; border-radius: 10px; font-size: 14px; color: #111417; cursor: pointer;
+}
+
+/* ---------- Buscador de mercancia (Inicio) ---------- */
+.buscador-caja {
+  background: white; border: 1px solid #E4E7EB; border-radius: 16px; padding: 20px; margin-bottom: 16px;
+  box-shadow: 0 2px 8px rgba(17, 20, 23, 0.06);
+}
+.buscador-titulo { font-size: 20px; font-weight: 600; margin-bottom: 12px; }
+.buscador-campo { position: relative; }
+.buscador-campo input {
+  width: 100%; box-sizing: border-box; height: 60px; padding: 0 48px 0 54px; font-size: 18px;
+  border: 2px solid #E4E7EB; border-radius: 14px; background: #F7F8FA; color: #111417; outline: none;
+}
+.buscador-campo input:focus { border-color: #FF6600; background: white; }
+.buscador-lupa { position: absolute; left: 18px; top: 18px; pointer-events: none; }
+.buscador-borrar {
+  position: absolute; right: 10px; top: 10px; width: 40px; height: 40px; background: none; border: none;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.buscador-aviso { font-size: 14px; color: #5B6470; margin: 10px 0 0; }
+.buscador-lista { margin-top: 10px; border: 1px solid #E4E7EB; border-radius: 12px; overflow: hidden; }
+.buscador-item { padding: 12px 14px; border-bottom: 1px solid #E4E7EB; cursor: pointer; background: white; }
+.buscador-item:last-child { border-bottom: none; }
+.buscador-item:hover { background: #F7F8FA; }
+
+/* Ficha del producto escogido */
+.ficha-producto { margin-top: 16px; padding-top: 16px; border-top: 1px solid #E4E7EB; }
+.ficha-fila-grande { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+.ficha-icono {
+  width: 52px; height: 52px; border-radius: 14px; background: #FFF0E6;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.ficha-numero { font-size: 34px; font-weight: 600; line-height: 1.1; }
+.ficha-datos { display: grid; gap: 6px; margin-bottom: 12px; }
+.ficha-datos > div { display: flex; justify-content: space-between; gap: 10px; font-size: 16px; }
+.ficha-datos span { color: #5B6470; }
+.ficha-detalle { font-size: 14px; color: #5B6470; background: #F7F8FA; border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; }
+.ficha-otro { display: flex; align-items: center; gap: 8px; font-size: 14px; color: #5B6470; margin-top: 4px; }
+
+/* ---------- Tarjetas de Bodega y Tienda (Reporte) ---------- */
+.tarjetas2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+.tarjeta-alta {
+  background: white; border: 1px solid #E4E7EB; border-radius: 16px; padding: 16px;
+  min-height: 150px; display: flex; flex-direction: column; justify-content: space-between;
+  box-shadow: 0 2px 8px rgba(17, 20, 23, 0.06);
+}
+.tarjeta-cabeza { display: flex; align-items: center; gap: 10px; }
+.tarjeta-icono {
+  width: 46px; height: 46px; border-radius: 12px; background: #FFF0E6;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.tarjeta-alta .tarjeta-icono { width: 72px; height: 72px; border-radius: 16px; }
+.tarjeta-alta .tarjeta-cabeza { gap: 14px; }
+.tarjeta-nombre { font-size: 26px; font-weight: 600; line-height: 1.1; }
+.tarjeta-monto { font-size: clamp(18px, 5vw, 28px); font-weight: 600; word-break: break-word; }
+.tarjeta-detalle { font-size: 14px; color: #5B6470; }
+.franja-total {
+  background: #FF6600; color: white; border-radius: 12px; padding: 12px 16px;
+  display: flex; justify-content: space-between; align-items: center;
+  max-width: 460px; margin: 0 auto 16px;
+}
+
+/* ---------- Botones Ingresos / Salidas / Reportes ---------- */
+.botones-historial { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.botones-historial button {
+  position: relative; background: white; border: 1px solid #E4E7EB; border-radius: 14px; padding: 18px 6px;
+  color: #111417; cursor: pointer; box-shadow: 0 2px 8px rgba(17, 20, 23, 0.06);
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+}
+.botones-historial button span:not(.globito) { font-size: 20px; font-weight: 600; }
+.botones-historial button:hover { border-color: #FF6600; }
+.globito {
+  position: absolute; top: 6px; right: 8px; background: #DC2626; color: white; border-radius: 10px;
+  font-size: 12px; padding: 1px 7px; font-weight: 600;
+}
+.caja-panel { background: white; border: 1px solid #E4E7EB; border-radius: 16px; padding: 16px; box-shadow: 0 2px 8px rgba(17, 20, 23, 0.06); }
+
+/* ---------- Boton de descargar Excel ---------- */
+.boton-reporte {
+  display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; max-width: 460px;
+  margin: 16px auto 0; padding: 14px; border-radius: 12px;
+  background: white; border: 1px solid #FF6600; color: #FF6600; font-weight: 600; font-size: 16px; cursor: pointer;
+}
+.boton-reporte:hover { background: #FFF0E6; }
+.boton-reporte:disabled { opacity: 0.6; }
+
+/* ---------- Gestion (Productos y Mercancia) ---------- */
+.gestion { display: flex; flex-direction: column; gap: 12px; }
+.gestion-menu { display: flex; gap: 8px; }
+.gestion-menu button {
+  flex: 1; padding: 20px 8px; border-radius: 12px; font-weight: 600; font-size: 22px;
+  border: 1px solid #E4E7EB; background: white; color: #111417; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+}
+.gestion-menu button.activo { background: #FF6600; border-color: #FF6600; color: white; }
+.gestion-contenido { flex: 1; min-width: 0; }
+
+/* ---------- Pantallas anchas (computador) ---------- */
+@media (min-width: 900px) {
+  .tarjeta-alta { min-height: 170px; }
+  .gestion { flex-direction: row; align-items: flex-start; }
+  .gestion-menu { flex-direction: column; width: 220px; }
+}

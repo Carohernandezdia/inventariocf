@@ -16,13 +16,17 @@ function Correcciones({ negocio, nombreUsuario }) {
   const [editandoId, setEditandoId] = useState(null)
   const [cantidadNueva, setCantidadNueva] = useState('')
   const [guardando, setGuardando] = useState(false)
+  const [limite, setLimite] = useState(100) // cuantos movimientos se piden (sube de 100 en 100)
 
   useEffect(() => {
-    buscar()
+    buscar(100)
   }, [])
 
-  // Trae los ultimos 100 movimientos (que no esten ya corregidos), con filtro opcional
-  async function buscar() {
+  // Trae los ultimos movimientos (que no esten ya corregidos), con filtro opcional.
+  // El filtro busca en TODO el historial; "tope" es cuantos resultados se muestran.
+  async function buscar(tope) {
+    const cuantos = tope || 100
+    setLimite(cuantos)
     setCargando(true)
     setMensaje('')
     let consulta = supabase
@@ -31,7 +35,7 @@ function Correcciones({ negocio, nombreUsuario }) {
       .eq('negocio', negocio.codigo_negocio)
       .eq('anulado', false)
       .order('creado_en', { ascending: false })
-      .limit(100)
+      .limit(cuantos)
 
     const texto = busqueda.trim().replace(/[%,()]/g, ' ') // quita simbolos que dañan el filtro
     if (texto) {
@@ -113,14 +117,14 @@ function Correcciones({ negocio, nombreUsuario }) {
     setEditandoId(null)
     setGuardando(false)
     setMensaje('✓ Corregido: ' + mov.nombre + ' de ' + mov.cantidad + ' a ' + nueva + ' (diferencia ' + diferencia + ')')
-    buscar()
+    buscar(limite) // vuelve a cargar manteniendo cuantos se estaban viendo
   }
 
   return (
     <div style={{ maxWidth: 500, margin: '0 auto', padding: 16 }}>
       <div style={{ fontWeight: 'bold', marginBottom: 8 }}>Corregir envíos</div>
       <p style={{ fontSize: 12, color: '#5B6470', marginTop: 0 }}>
-        Busca por nombre de la persona, producto o código. Se muestran los últimos 100.
+        Busca por nombre de la persona, producto o código. {limite} resultados.
       </p>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
@@ -129,11 +133,11 @@ function Correcciones({ negocio, nombreUsuario }) {
           placeholder="Persona, producto o código"
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') buscar() }}
+          onKeyDown={(e) => { if (e.key === 'Enter') buscar(100) }}
           style={{ flex: 1, padding: 12, border: '1px solid #E4E7EB', borderRadius: 8, fontSize: 16 }}
         />
         <button
-          onClick={buscar}
+          onClick={() => buscar(100)}
           style={{ background: '#FF6600', color: 'white', border: 'none', borderRadius: 8, padding: '0 16px', fontWeight: 'bold' }}
         >
           Buscar
@@ -193,6 +197,16 @@ function Correcciones({ negocio, nombreUsuario }) {
           )}
         </div>
       ))}
+
+      {/* Si hay mas movimientos de los que se ven, deja pedir otros 100 */}
+      {movimientos.length >= limite && (
+        <button
+          onClick={() => buscar(limite + 100)}
+          style={{ width: '100%', padding: 12, background: 'white', border: '1px solid #E4E7EB', borderRadius: 8, fontWeight: 'bold' }}
+        >
+          Ver 100 más
+        </button>
+      )}
     </div>
   )
 }

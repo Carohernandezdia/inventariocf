@@ -5,6 +5,7 @@
 //   - Google Sheets = el cardex; se actualiza en segundo plano con la cola de envios
 // =====================================================================
 import { useState, useEffect, useRef, useMemo } from 'react'
+import { Camera, X, RefreshCw } from 'lucide-react'
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 import { supabase } from '../lib/supabaseClient'
 import { encolar, procesarCola, nuevoUuid } from '../lib/colaSheets'
@@ -24,16 +25,17 @@ function normalizar(texto) {
   return String(texto || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 }
 
-function Contar({ negocio, nombreUsuario }) {
+function Contar({ negocio, nombreUsuario, rol, onCrearProducto }) {
+  // Los empleados solo cuentan en Tienda. La Bodega es solo para el admin (celulares del area administrativa).
+  const secciones = rol === 'admin' ? ['Bodega', 'Tienda'] : ['Tienda']
   const [productos, setProductos] = useState([])
   const [estado, setEstado] = useState('Cargando productos...')
-  const [seccion, setSeccion] = useState('Bodega')
+  const [seccion, setSeccion] = useState(rol === 'admin' ? 'Bodega' : 'Tienda')
   const [texto, setTexto] = useState('')
   const [coincidencias, setCoincidencias] = useState([])
   const [productoActual, setProductoActual] = useState(null)
   const [precio, setPrecio] = useState(0)
   const [cantidad, setCantidad] = useState('1')
-  const [nombreManual, setNombreManual] = useState('')
   const [guardando, setGuardando] = useState(false)
   const [camaraAbierta, setCamaraAbierta] = useState(false)
   const [historial, setHistorial] = useState([])
@@ -54,13 +56,14 @@ function Contar({ negocio, nombreUsuario }) {
 
   // Trae los productos de Supabase de 1000 en 1000 (Supabase entrega maximo 1000 por consulta)
   async function cargarProductos() {
+    setEstado('Actualizando lista...')
     let todos = []
     let desde = 0
     const TAMANO = 1000
     while (true) {
       const { data, error } = await supabase
         .from('productos')
-        .select('codigo, nombre, precio_de_compra, codigo_padre')
+        .select('codigo, nombre, precio_de_compra, codigo_padre, unidad_medida')
         .eq('establecimiento', negocio.codigo_negocio)
         .range(desde, desde + TAMANO - 1)
       if (error) {
@@ -148,21 +151,9 @@ function Contar({ negocio, nombreUsuario }) {
     setTexto(p.codigo)
   }
 
-  function usarComoNoEncontrado() {
-    const codigo = texto.trim()
-    if (!codigo) return
-    reproducirBeep()
-    setProductoActual({ codigo, nombre: null, precio_de_compra: 0 })
-    setPrecio(0)
-    setCantidad('1')
-    setNombreManual('')
-    setCoincidencias([])
-  }
-
   function cancelar() {
     setProductoActual(null)
     setTexto('')
-    setNombreManual('')
     if (inputRef.current) inputRef.current.focus()
   }
 
@@ -178,7 +169,7 @@ function Contar({ negocio, nombreUsuario }) {
 
     enviandoRef.current = true
     setGuardando(true)
-    const nombreFinal = productoActual.nombre || nombreManual.trim() || productoActual.codigo
+    const nombreFinal = productoActual.nombre || productoActual.codigo
     const idMov = nuevoUuid()
 
     // 1) Guarda el movimiento en Supabase (rapido). Queda en el historial de todos.
@@ -254,11 +245,19 @@ function Contar({ negocio, nombreUsuario }) {
 
   return (
     <div style={{ maxWidth: 500, margin: '0 auto', padding: 16 }}>
-      <p style={{ fontSize: 12, color: '#5B6470' }}>{estado}</p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <span style={{ fontSize: 12, color: '#5B6470' }}>{estado}</span>
+        <button
+          onClick={cargarProductos}
+          style={{ fontSize: 14, padding: '6px 10px', background: 'white', border: '1px solid #E4E7EB', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 6 }}
+        >
+          <RefreshCw size={16} strokeWidth={1.75} color="#FF6600" /> Actualizar lista
+        </button>
+      </div>
 
-      {/* Bodega / Tienda */}
+      {/* Bodega / Tienda (el empleado solo ve Tienda) */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-        {['Bodega', 'Tienda'].map((s) => (
+        {secciones.map((s) => (
           <button
             key={s}
             onClick={() => setSeccion(s)}
@@ -286,9 +285,10 @@ function Contar({ negocio, nombreUsuario }) {
         />
         <button
           onClick={abrirCamara}
-          style={{ background: '#00CFFF', border: 'none', borderRadius: 8, padding: '0 14px' }}
+          aria-label="Abrir cámara"
+          style={{ background: 'white', border: '1px solid #E4E7EB', borderRadius: 8, padding: '0 16px', display: 'flex', alignItems: 'center' }}
         >
-          📷
+          <Camera size={24} strokeWidth={1.75} color="#FF6600" />
         </button>
       </div>
 
@@ -296,9 +296,9 @@ function Contar({ negocio, nombreUsuario }) {
         <div style={{ maxWidth: 280, margin: '0 auto 12px auto' }}>
           <button
             onClick={cerrarCamara}
-            style={{ width: '100%', marginBottom: 6, padding: 10, background: '#111417', color: 'white', border: 'none', borderRadius: 8, fontWeight: 'bold' }}
+            style={{ width: '100%', marginBottom: 6, padding: 10, background: '#111417', color: 'white', border: 'none', borderRadius: 8, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
           >
-            ✕ Cerrar cámara
+            <X size={16} strokeWidth={1.75} /> Cerrar cámara
           </button>
           <div id="lector-camara" style={{ width: '100%' }}></div>
         </div>
@@ -317,13 +317,29 @@ function Contar({ negocio, nombreUsuario }) {
         </div>
       )}
 
-      {texto.trim() && coincidencias.length === 0 && !productoActual && /^[0-9]+$/.test(texto.trim()) && (
-        <button
-          onClick={usarComoNoEncontrado}
-          style={{ width: '100%', marginBottom: 12, padding: 10, background: '#fff', border: '1px solid #DC2626', color: '#DC2626', borderRadius: 8 }}
-        >
-          No aparece — agregar código {texto} con nombre manual
-        </button>
+      {/* Codigo que no esta en la lista: no se puede enviar. El admin lo crea en la pestaña Productos. */}
+      {texto.trim().length >= 8 && coincidencias.length === 0 && !productoActual && /^[0-9]+$/.test(texto.trim()) && (
+        <div style={{ marginBottom: 12, padding: 10, border: '1px solid #DC2626', borderRadius: 8, color: '#DC2626', fontSize: 13 }}>
+          Este código no está en la lista, así que no se puede enviar. Avísale al administrador para que lo cree.
+          <br />
+          <b>Código: {texto.trim()}</b>
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <button
+              onClick={cargarProductos}
+              style={{ padding: '6px 10px', background: 'white', border: '1px solid #DC2626', color: '#DC2626', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              <RefreshCw size={16} strokeWidth={1.75} /> Actualizar lista
+            </button>
+            {rol === 'admin' && onCrearProducto && (
+              <button
+                onClick={() => onCrearProducto(texto.trim())}
+                style={{ padding: '6px 10px', background: '#FF6600', border: 'none', color: 'white', borderRadius: 6, fontWeight: 'bold' }}
+              >
+                Crear este producto
+              </button>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Producto seleccionado: precio, cantidad y boton Agregar */}
@@ -331,24 +347,18 @@ function Contar({ negocio, nombreUsuario }) {
         <div style={{ background: 'white', border: '1px solid #E4E7EB', borderRadius: 10, padding: 14 }}>
           <div style={{ fontWeight: 'bold' }}>{productoActual.nombre || 'Código: ' + productoActual.codigo}</div>
 
-          {!productoActual.nombre && (
-            <input
-              type="text"
-              placeholder="Escribe el nombre del producto"
-              value={nombreManual}
-              onChange={(e) => setNombreManual(e.target.value)}
-              style={{ ...estiloCaja, width: '100%', marginTop: 8 }}
-            />
-          )}
-
-          <label style={{ fontSize: 12, color: '#5B6470', marginTop: 10, display: 'block' }}>Precio (editable)</label>
-          <input
-            type="text"
-            inputMode="decimal"
-            value={precio}
-            onChange={(e) => setPrecio(e.target.value)}
-            style={{ ...estiloCaja, width: '100%', marginBottom: 8 }}
-          />
+          {/* El precio ya NO se edita aqui (solo en Productos > Editar). Se muestra con su medida. */}
+          <div style={{ marginTop: 10, marginBottom: 10, padding: 10, background: '#FFF3EB', borderRadius: 8, fontSize: 13 }}>
+            <div>
+              Precio: <b>${Math.round(Number(precio) || 0).toLocaleString('es-CO')}</b>
+              {productoActual.unidad_medida ? ' por ' + productoActual.unidad_medida : ''}
+            </div>
+            <div style={{ color: '#FF6600', fontWeight: 'bold', marginTop: 2 }}>
+              {productoActual.unidad_medida
+                ? 'Este producto se cuenta por ' + productoActual.unidad_medida.toUpperCase()
+                : 'Medida sin definir (se cuenta por unidad)'}
+            </div>
+          </div>
 
           <div style={{ display: 'flex', gap: 8 }}>
             <input
@@ -356,6 +366,7 @@ function Contar({ negocio, nombreUsuario }) {
               type="text"
               inputMode="decimal"
               enterKeyHint="done"
+              placeholder={productoActual.unidad_medida ? 'Cantidad (en ' + productoActual.unidad_medida + ')' : 'Cantidad'}
               value={cantidad}
               onChange={(e) => setCantidad(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') confirmar() }}
