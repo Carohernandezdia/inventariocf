@@ -1,7 +1,7 @@
 // =====================================================================
-// Pantalla "Mercancia" del administrador: junta PRODUCTOS (crear, editar, eliminar)
-// y MERCANCIA (ingresar, sacar, reportar) en un solo lugar.
-// En celular los dos botones grandes van arriba; en computador van a la izquierda.
+// Pantalla "Mercancia" del administrador: junta MERCANCIA (ingresar, sacar, reportar)
+// y PRODUCTOS (crear, editar, eliminar) en un solo lugar.
+// Arriba van dos pestañas tipo carpeta: la abierta va en naranja y pegada al contenido.
 // =====================================================================
 import { useState } from 'react'
 import { Package, Tag } from 'lucide-react'
@@ -13,21 +13,25 @@ function Gestion({ negocio, nombreUsuario, codigoInicial, onListo }) {
   // Si venimos de "Crear este producto" (desde Contar), abre directo en Productos
   const [seccion, setSeccion] = useState(codigoInicial ? 'productos' : 'mercancia')
 
+  // Cada pestaña: icono Lucide + palabra (el icono va blanco si esta abierta, naranja si no)
+  const pestana = (id, texto, Icono) => {
+    const activa = seccion === id
+    return (
+      <button className={'carpeta-tab' + (activa ? ' activa' : '')} onClick={() => setSeccion(id)}>
+        <Icono size={20} strokeWidth={activa ? 2.25 : 1.75} color={activa ? 'white' : '#FF6600'} />
+        {texto}
+      </button>
+    )
+  }
+
   return (
-    <div className="gestion">
-      {/* Dos botones grandes: icono Lucide arriba (blanco si esta activo, naranja si no) y la palabra grande */}
-      <div className="gestion-menu">
-        <button className={seccion === 'mercancia' ? 'activo' : ''} onClick={() => setSeccion('mercancia')}>
-          <Package size={32} strokeWidth={seccion === 'mercancia' ? 2.25 : 1.75} color={seccion === 'mercancia' ? 'white' : '#FF6600'} />
-          Mercancía
-        </button>
-        <button className={seccion === 'productos' ? 'activo' : ''} onClick={() => setSeccion('productos')}>
-          <Tag size={32} strokeWidth={seccion === 'productos' ? 2.25 : 1.75} color={seccion === 'productos' ? 'white' : '#FF6600'} />
-          Productos
-        </button>
+    <div style={{ maxWidth: 560, margin: '0 auto' }}>
+      <div className="carpeta-tabs">
+        {pestana('mercancia', 'Mercancía', Package)}
+        {pestana('productos', 'Productos', Tag)}
       </div>
 
-      <div className="gestion-contenido">
+      <div className="carpeta-cuerpo">
         {seccion === 'mercancia' && <Mercancia negocio={negocio} nombreUsuario={nombreUsuario} />}
         {seccion === 'productos' && <Productos negocio={negocio} codigoInicial={codigoInicial} onListo={onListo} />}
       </div>

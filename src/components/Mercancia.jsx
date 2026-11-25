@@ -1,6 +1,10 @@
 // =====================================================================
 // Pantalla "Mercancia" (solo admin): Ingresar, Sacar y Reportar mercancia.
-// El Google Sheets NO se toca desde aqui: solo se pone al dia al preparar un inventario nuevo.
+// El Google Sheets NO se toca desde aqui: solo se regenera al empezar un inventario nuevo.
+// Ingresar: el admin escoge si entra a Bodega o directo a Tienda (refrigerados: pollo, pescado, leche, Alpina...).
+// Sacar: de Bodega hacia Tienda, Prestamo u Otro. Lo vencido/danado/devuelto NO se saca aqui: se REPORTA en Reportar.
+// Reportar: vencida, danada y devolver DESCUENTAN de una vez; cada reporte se cierra con Reintegraron / Perdida / Anular.
+// Buscar: por codigo de barras (pistola) o por nombre (CampoProducto).
 // REGLA: todo entra y sale en la MEDIDA del producto (unidad, libra, caja...). Una sola medida por producto.
 // =====================================================================
 import { useState, useEffect, useRef } from 'react'
@@ -8,6 +12,9 @@ import { ArrowDownToLine, ArrowUpFromLine, AlertTriangle } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { MEDIDAS } from '../lib/medidas'
 import { leerNumero } from '../lib/numeros'
+import CampoProducto from './CampoProducto'
+import { calcularSaldos } from '../lib/inventario'
+import { TIPOS_REPORTE, descuenta, MARCA } from './ReporteItem'
 
 const estiloCampo = { width: '100%', padding: 12, border: '1px solid #E4E7EB', borderRadius: 8, fontSize: 16, marginBottom: 10, boxSizing: 'border-box' }
 const estiloCaja = { background: 'white', border: '1px solid #E4E7EB', borderRadius: 10, padding: 16 }
@@ -18,11 +25,11 @@ function plata(n) {
 }
 
 // ---------------------------------------------------------------------
-// INGRESAR: entra mercancia a Bodega
+// INGRESAR: entra mercancia a Bodega o directo a Tienda
 // ---------------------------------------------------------------------
 function Ingresar({ negocio, nombreUsuario }) {
-  const [codigo, setCodigo] = useState('')
   const [producto, setProducto] = useState(null)      // producto encontrado
+  const [destinoIng, setDestinoIng] = useState('Bodega') // a donde entra: Bodega o Tienda (se mantiene entre ingresos)
   const [medida, setMedida] = useState('')            // medida elegida (si el producto no tenia)
   const [cantidad, setCantidad] = useState('')
   const [costo, setCosto] = useState('')
@@ -39,40 +46,26 @@ function Ingresar({ negocio, nombreUsuario }) {
   const [guardando, setGuardando] = useState(false)
   const [mensaje, setMensaje] = useState('')
   const [recientes, setRecientes] = useState([])
-  const refCodigo = useRef(null)
   const refCantidad = useRef(null)
 
   // Carga los ultimos ingresos al abrir la pantalla
   async function cargarRecientes() {
     const { data } = await supabase
       .from('movimientos_mercancia')
-      .select('id, nombre, cantidad, unidad_medida, costo, usuario, creado_en')
+      .select('id, codigo, nombre, cantidad, unidad_medida, costo, destino, nota, usuario, creado_en')
       .eq('negocio', negocio.codigo_negocio)
       .eq('tipo', 'ingreso')
       .eq('anulado', false)
       .order('creado_en', { ascending: false })
-      .limit(10)
-    setRecientes(data || [])
+      .limit(30)
+    // Los reintegros de reportes se ven en Reportes, no aqui
+    setRecientes((data || []).filter((m) => !(m.nota || '').startsWith(MARCA)).slice(0, 10))
   }
   useEffect(() => { cargarRecientes() }, [])
 
-  // Busca el producto por codigo exacto (la pistola escribe el codigo y manda Enter)
-  async function buscar() {
-    const cod = codigo.trim()
-    if (!cod) return
+  // Se llama cuando CampoProducto encuentra el producto (por codigo de barras o por nombre)
+  function elegir(data) {
     setMensaje('')
-    const { data, error } = await supabase
-      .from('productos')
-      .select('codigo, nombre, precio_de_compra, unidad_medida')
-      .eq('establecimiento', negocio.codigo_negocio)
-      .eq('codigo', cod)
-      .maybeSingle()
-    if (error) { setMensaje('Error buscando: ' + error.message); return }
-    if (!data) {
-      setProducto(null)
-      setMensaje('⚠️ Ese código no existe en la lista. Créalo primero en la pantalla Productos.')
-      return
-    }
     setProducto(data)
     setMedida(data.unidad_medida || '')
     setCosto(String(data.precio_de_compra || ''))
@@ -118,7 +111,6 @@ function Ingresar({ negocio, nombreUsuario }) {
   }
 
   function limpiar() {
-    setCodigo('')
     setProducto(null)
     setMedida('')
     setCantidad('')
@@ -126,7 +118,6 @@ function Ingresar({ negocio, nombreUsuario }) {
     setNota('')
     setConfirmarCosto(false)
     setAMensaje('')
-    setTimeout(() => refCodigo.current && refCodigo.current.focus(), 50)
   }
 
   async function guardar() {
@@ -160,7 +151,7 @@ function Ingresar({ negocio, nombreUsuario }) {
       cantidad: cant,
       unidad_medida: medida,
       costo: cos,
-      destino: 'Bodega',
+      destino: destinoIng,
       nota: nota.trim() || null
     })
     if (r.error) { setMensaje('No se pudo guardar: ' + r.error.message); setGuardando(false); return }
@@ -175,7 +166,7 @@ function Ingresar({ negocio, nombreUsuario }) {
     let aviso = ''
     if (r2.error) aviso = ' (No se pudo actualizar el costo del producto: ' + r2.error.message + ')'
 
-    setMensaje('✓ Ingresaron ' + cant + ' ' + medida + ' de ' + producto.nombre + ' a Bodega.' + aviso)
+    setMensaje('✓ Ingresaron ' + cant + ' ' + medida + ' de ' + producto.nombre + ' a ' + destinoIng + '.' + aviso)
     cargarRecientes()
     limpiar()
     setGuardando(false)
@@ -192,22 +183,18 @@ function Ingresar({ negocio, nombreUsuario }) {
   return (
     <div>
       <div style={estiloCaja}>
-        <div style={{ fontWeight: 'bold', marginBottom: 8 }}>Ingresar mercancía a Bodega</div>
+        <div style={{ fontWeight: 'bold', marginBottom: 8 }}>Ingresar mercancía</div>
 
-        <input
-          ref={refCodigo}
-          autoFocus
-          type="text"
-          inputMode="numeric"
-          placeholder="Código de barras (lee con la pistola y Enter)"
-          value={codigo}
-          onChange={(e) => setCodigo(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') buscar() }}
-          style={estiloCampo}
-        />
-        {!producto && (
-          <button onClick={buscar} style={{ ...estiloNaranja, marginBottom: 8 }}>Buscar</button>
-        )}
+        {/* ¿A donde entra? Los refrigerados (pollo, pescado, leche, Alpina...) entran directo a Tienda */}
+        <div style={{ fontSize: 13, fontWeight: 'bold', marginBottom: 4 }}>¿A dónde entra?</div>
+        <div className="subtabs" style={{ marginBottom: 12 }}>
+          {['Bodega', 'Tienda'].map((d) => (
+            <button key={d} className={'subtab' + (destinoIng === d ? ' activa' : '')} onClick={() => setDestinoIng(d)}>{d}</button>
+          ))}
+        </div>
+
+        {/* Buscar por codigo de barras (pistola) o por nombre */}
+        {!producto && <CampoProducto negocio={negocio} onElegir={elegir} />}
 
         {producto && (
           <div>
@@ -284,7 +271,7 @@ function Ingresar({ negocio, nombreUsuario }) {
         {producto && (
           <div>
             <button onClick={guardar} disabled={guardando} style={{ ...estiloNaranja, opacity: guardando ? 0.6 : 1 }}>
-              {guardando ? 'Guardando...' : confirmarCosto ? 'Sí, guardar' : 'Guardar ingreso'}
+              {guardando ? 'Guardando...' : confirmarCosto ? 'Sí, guardar' : 'Guardar ingreso a ' + destinoIng}
             </button>
             <button onClick={limpiar} style={{ width: '100%', padding: 12, marginTop: 8, background: 'white', border: '1px solid #E4E7EB', borderRadius: 8 }}>
               Cancelar
@@ -299,7 +286,7 @@ function Ingresar({ negocio, nombreUsuario }) {
           {recientes.map((m) => (
             <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12, color: '#5B6470', borderBottom: '1px dashed #E4E7EB', padding: '6px 0' }}>
               <span>
-                <b>{m.nombre}</b> · {m.cantidad} {m.unidad_medida} · {plata(m.costo)} · {m.usuario} · {new Date(m.creado_en).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                <b>{m.nombre}</b> ({m.codigo}) · {m.cantidad} {m.unidad_medida} → {m.destino} · {plata(m.costo)} · {m.usuario} · {new Date(m.creado_en).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
               </span>
               <span onClick={() => anular(m.id)} style={{ color: '#DC2626', cursor: 'pointer' }}>Anular</span>
             </div>
@@ -313,28 +300,21 @@ function Ingresar({ negocio, nombreUsuario }) {
 // ---------------------------------------------------------------------
 // SACAR: sale mercancia de Bodega (por defecto va a Tienda)
 // ---------------------------------------------------------------------
-const DESTINOS = ['Tienda', 'Préstamo', 'Daño o vencido', 'Devolución al proveedor', 'Otro']
+// Lo vencido, danado o devuelto NO se saca aqui: se reporta en Reportar (queda registrado y se puede cerrar)
+const DESTINOS = ['Tienda', 'Préstamo', 'Otro']
 
-// Saldo de Bodega de un producto = inventario inicial + ingresos - salidas (solo lo que esta registrado en el sistema)
+// Saldo de Bodega de un producto: lo calcula lib/inventario.js (stock inicial + ingresos - salidas,
+// y lo contado si es el primer inventario). Devuelve null si no se pudo calcular.
 async function saldoBodega(negocio, codigo) {
-  const { data, error } = await supabase
-    .from('movimientos_mercancia')
-    .select('tipo, origen, destino, cantidad')
-    .eq('negocio', negocio.codigo_negocio)
-    .eq('codigo', codigo)
-    .eq('anulado', false)
-  if (error) return null
-  let saldo = 0
-  data.forEach((m) => {
-    const c = Number(m.cantidad) || 0
-    if (m.destino === 'Bodega') saldo += c
-    if (m.origen === 'Bodega') saldo -= c
-  })
-  return saldo
+  try {
+    const r = await calcularSaldos(negocio, codigo, MARCA)
+    return r.bodega
+  } catch (e) {
+    return null
+  }
 }
 
 function Sacar({ negocio, nombreUsuario }) {
-  const [codigo, setCodigo] = useState('')
   const [producto, setProducto] = useState(null)
   const [saldo, setSaldo] = useState(null)
   const [cantidad, setCantidad] = useState('')
@@ -348,35 +328,27 @@ function Sacar({ negocio, nombreUsuario }) {
   const [guardando, setGuardando] = useState(false)
   const [mensaje, setMensaje] = useState('')
   const [recientes, setRecientes] = useState([])
-  const refCodigo = useRef(null)
   const refCantidad = useRef(null)
 
   async function cargarRecientes() {
     const { data } = await supabase
       .from('movimientos_mercancia')
-      .select('id, nombre, cantidad, unidad_medida, destino, usuario, creado_en')
+      .select('id, codigo, nombre, cantidad, unidad_medida, destino, usuario, creado_en')
       .eq('negocio', negocio.codigo_negocio)
       .eq('tipo', 'salida')
       .eq('anulado', false)
       .order('creado_en', { ascending: false })
-      .limit(10)
-    setRecientes(data || [])
+      .limit(30)
+    // Los descuentos de reportes se ven y se cierran en Reportes, no aqui
+    setRecientes((data || []).filter((m) => m.destino !== 'Reporte').slice(0, 10))
   }
   useEffect(() => { cargarRecientes() }, [])
 
-  async function buscar() {
-    const cod = codigo.trim()
-    if (!cod) return
+  // Se llama cuando CampoProducto encuentra el producto (por codigo de barras o por nombre)
+  async function elegir(data) {
     setMensaje('')
-    const { data, error } = await supabase
-      .from('productos')
-      .select('codigo, nombre, precio_de_compra, unidad_medida')
-      .eq('establecimiento', negocio.codigo_negocio)
-      .eq('codigo', cod)
-      .maybeSingle()
-    if (error) { setMensaje('Error buscando: ' + error.message); return }
-    if (!data) { setProducto(null); setMensaje('⚠️ Ese código no existe en la lista. Créalo primero en Productos.'); return }
     setProducto(data)
+    setSaldo(null)
     setSaldo(await saldoBodega(negocio, data.codigo))
     setCantidad('')
     setNota('')
@@ -398,7 +370,6 @@ function Sacar({ negocio, nombreUsuario }) {
   }
 
   function limpiar() {
-    setCodigo('')
     setProducto(null)
     setSaldo(null)
     setCantidad('')
@@ -406,7 +377,6 @@ function Sacar({ negocio, nombreUsuario }) {
     setDestino('Tienda')
     setConfirmarSaldo(false)
     setAMensaje('')
-    setTimeout(() => refCodigo.current && refCodigo.current.focus(), 50)
   }
 
   async function guardar() {
@@ -457,18 +427,8 @@ function Sacar({ negocio, nombreUsuario }) {
       <div style={estiloCaja}>
         <div style={{ fontWeight: 'bold', marginBottom: 8 }}>Sacar mercancía de Bodega</div>
 
-        <input
-          ref={refCodigo}
-          autoFocus
-          type="text"
-          inputMode="numeric"
-          placeholder="Código de barras (lee con la pistola y Enter)"
-          value={codigo}
-          onChange={(e) => setCodigo(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') buscar() }}
-          style={estiloCampo}
-        />
-        {!producto && <button onClick={buscar} style={{ ...estiloNaranja, marginBottom: 8 }}>Buscar</button>}
+        {/* Buscar por codigo de barras (pistola) o por nombre */}
+        {!producto && <CampoProducto negocio={negocio} onElegir={elegir} />}
 
         {producto && (
           <div>
@@ -480,7 +440,7 @@ function Sacar({ negocio, nombreUsuario }) {
               <div style={{ fontSize: 13, marginTop: 4 }}>
                 En Bodega hay registrados: <b>{saldo === null ? '?' : saldo}</b> {medida}
               </div>
-              <div style={{ fontSize: 11, color: '#5B6470' }}>(según los ingresos y salidas anotados en el sistema)</div>
+              <div style={{ fontSize: 11, color: '#5B6470' }}>(lo contado + ingresos - salidas anotados en el sistema)</div>
             </div>
 
             <input
@@ -538,7 +498,7 @@ function Sacar({ negocio, nombreUsuario }) {
           {recientes.map((m) => (
             <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12, color: '#5B6470', borderBottom: '1px dashed #E4E7EB', padding: '6px 0' }}>
               <span>
-                <b>{m.nombre}</b> · {m.cantidad} {m.unidad_medida} → {m.destino} · {m.usuario} · {new Date(m.creado_en).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                <b>{m.nombre}</b> ({m.codigo}) · {m.cantidad} {m.unidad_medida} → {m.destino} · {m.usuario} · {new Date(m.creado_en).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
               </span>
               <span onClick={() => anular(m.id)} style={{ color: '#DC2626', cursor: 'pointer' }}>Anular</span>
             </div>
@@ -550,65 +510,30 @@ function Sacar({ negocio, nombreUsuario }) {
 }
 
 // ---------------------------------------------------------------------
-// REPORTAR: avisar de mercancia vencida, por vencerse, para devolver, danada u otro.
-// Un reporte NO cambia el saldo: es un aviso. Si la mercancia sale de bodega, se registra aparte en Sacar.
+// REPORTAR: mercancia vencida, por vencerse, para devolver, danada u otro.
+//   - Vencida, Dañada y Devolver DESCUENTAN al guardar (salida con destino 'Reporte' desde Bodega o Tienda).
+//   - Por vencerse y Otro solo avisan.
+// Cada reporte pendiente se cierra con: Reintegraron / Pérdida / Anular (ver ReporteItem.jsx).
 // ---------------------------------------------------------------------
-const TIPOS_REPORTE = {
-  vencida: 'Vencida',
-  por_vencerse: 'Por vencerse',
-  devolver: 'Para devolver al proveedor',
-  danada: 'Dañada o en mal estado',
-  otro: 'Otro'
-}
-
 function Reportar({ negocio, nombreUsuario }) {
-  const [codigo, setCodigo] = useState('')
   const [producto, setProducto] = useState(null)
-  const [tipo, setTipo] = useState('por_vencerse')
+  const [tipo, setTipo] = useState('vencida')
   const [ubicacion, setUbicacion] = useState('Bodega')
   const [cantidad, setCantidad] = useState('')
   const [fecha, setFecha] = useState('')
   const [nota, setNota] = useState('')
   const [guardando, setGuardando] = useState(false)
   const [mensaje, setMensaje] = useState('')
-  const [pendientes, setPendientes] = useState([])
-  const refCodigo = useRef(null)
-
-  async function cargarPendientes() {
-    const { data } = await supabase
-      .from('reportes_mercancia')
-      .select('id, nombre, cantidad, unidad_medida, tipo, ubicacion, fecha_vencimiento, nota, usuario, creado_en')
-      .eq('negocio', negocio.codigo_negocio)
-      .eq('anulado', false)
-      .eq('estado', 'pendiente')
-      .order('creado_en', { ascending: false })
-      .limit(30)
-    setPendientes(data || [])
-  }
-  useEffect(() => { cargarPendientes() }, [])
-
-  async function buscar() {
-    const cod = codigo.trim()
-    if (!cod) return
+  function elegir(data) {
     setMensaje('')
-    const { data, error } = await supabase
-      .from('productos')
-      .select('codigo, nombre, unidad_medida')
-      .eq('establecimiento', negocio.codigo_negocio)
-      .eq('codigo', cod)
-      .maybeSingle()
-    if (error) { setMensaje('Error buscando: ' + error.message); return }
-    if (!data) { setProducto(null); setMensaje('⚠️ Ese código no existe en la lista.'); return }
     setProducto(data)
   }
 
   function limpiar() {
-    setCodigo('')
     setProducto(null)
     setCantidad('')
     setFecha('')
     setNota('')
-    setTimeout(() => refCodigo.current && refCodigo.current.focus(), 50)
   }
 
   async function guardar() {
@@ -629,27 +554,35 @@ function Reportar({ negocio, nombreUsuario }) {
       ubicacion: ubicacion,
       fecha_vencimiento: fecha || null,
       nota: nota.trim() || null
-    })
+    }).select('id').single()
     if (r.error) { setMensaje('No se pudo guardar: ' + r.error.message); setGuardando(false); return }
 
-    setMensaje('✓ Reporte guardado: ' + TIPOS_REPORTE[tipo] + ' · ' + producto.nombre)
-    cargarPendientes()
+    // Vencida, danada y devolver: descuenta de donde esta (salida con destino 'Reporte')
+    if (descuenta(tipo)) {
+      const m = await supabase.from('movimientos_mercancia').insert({
+        negocio: negocio.codigo_negocio,
+        tipo: 'salida',
+        usuario: nombreUsuario,
+        codigo: producto.codigo,
+        nombre: producto.nombre,
+        cantidad: cant,
+        unidad_medida: producto.unidad_medida,
+        origen: ubicacion,
+        destino: 'Reporte',
+        nota: MARCA + r.data.id + ' ' + TIPOS_REPORTE[tipo]
+      })
+      if (m.error) {
+        // Si no se pudo descontar, no deja el reporte a medias
+        await supabase.from('reportes_mercancia').update({ anulado: true }).eq('id', r.data.id)
+        setMensaje('No se pudo descontar la mercancía, el reporte no se guardó: ' + m.error.message)
+        setGuardando(false)
+        return
+      }
+    }
+
+    setMensaje('✓ Reporte guardado: ' + TIPOS_REPORTE[tipo] + ' · ' + producto.nombre + (descuenta(tipo) ? '. Se descontó de ' + ubicacion + '.' : '.'))
     limpiar()
     setGuardando(false)
-  }
-
-  // Marca un reporte como resuelto (ya se devolvio, ya se saco, etc.)
-  async function resolver(id) {
-    const r = await supabase.from('reportes_mercancia').update({ estado: 'resuelto', resuelto_en: new Date().toISOString() }).eq('id', id)
-    if (r.error) { setMensaje('No se pudo marcar: ' + r.error.message); return }
-    cargarPendientes()
-  }
-
-  async function anular(id) {
-    if (!confirm('¿Anular este reporte? (se hizo por error)')) return
-    const r = await supabase.from('reportes_mercancia').update({ anulado: true }).eq('id', id)
-    if (r.error) { setMensaje('No se pudo anular: ' + r.error.message); return }
-    cargarPendientes()
   }
 
   const medida = producto && producto.unidad_medida ? producto.unidad_medida : ''
@@ -660,17 +593,8 @@ function Reportar({ negocio, nombreUsuario }) {
       <div style={estiloCaja}>
         <div style={{ fontWeight: 'bold', marginBottom: 8 }}>Reportar mercancía</div>
 
-        <input
-          ref={refCodigo}
-          type="text"
-          inputMode="numeric"
-          placeholder="Código de barras (lee con la pistola y Enter)"
-          value={codigo}
-          onChange={(e) => setCodigo(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') buscar() }}
-          style={estiloCampo}
-        />
-        {!producto && <button onClick={buscar} style={{ ...estiloNaranja, marginBottom: 8 }}>Buscar</button>}
+        {/* Buscar por codigo de barras (pistola) o por nombre */}
+        {!producto && <CampoProducto negocio={negocio} onElegir={elegir} />}
 
         {producto && (
           <div>
@@ -683,6 +607,11 @@ function Reportar({ negocio, nombreUsuario }) {
             <select value={tipo} onChange={(e) => setTipo(e.target.value)} style={estiloCampo}>
               {Object.keys(TIPOS_REPORTE).map((k) => <option key={k} value={k}>{TIPOS_REPORTE[k]}</option>)}
             </select>
+            <div style={{ fontSize: 12, color: descuenta(tipo) ? '#E65C00' : '#5B6470', margin: '-4px 0 10px' }}>
+              {descuenta(tipo)
+                ? 'Esta mercancía se descuenta de una vez de donde está. Si después la reintegran, la vuelve a ingresar desde el reporte.'
+                : 'Este reporte solo avisa: no descuenta mercancía.'}
+            </div>
 
             <div style={{ fontSize: 13, fontWeight: 'bold', marginBottom: 4 }}>¿Dónde está?</div>
             <select value={ubicacion} onChange={(e) => setUbicacion(e.target.value)} style={estiloCampo}>
@@ -724,27 +653,10 @@ function Reportar({ negocio, nombreUsuario }) {
         )}
       </div>
 
-      {pendientes.length > 0 && (
-        <div style={{ marginTop: 16 }}>
-          <div style={{ fontWeight: 'bold', marginBottom: 8 }}>Reportes pendientes ({pendientes.length})</div>
-          {pendientes.map((m) => (
-            <div key={m.id} style={{ fontSize: 12, color: '#5B6470', borderBottom: '1px dashed #E4E7EB', padding: '6px 0' }}>
-              <div>
-                <b>{m.nombre}</b> · {TIPOS_REPORTE[m.tipo] || m.tipo} · {m.cantidad} {m.unidad_medida} · {m.ubicacion}
-                {m.fecha_vencimiento ? ' · vence ' + m.fecha_vencimiento : ''}
-              </div>
-              {m.nota && <div>Nota: {m.nota}</div>}
-              <div>
-                {m.usuario} · {new Date(m.creado_en).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                {' · '}
-                <span onClick={() => resolver(m.id)} style={{ color: '#16A34A', cursor: 'pointer' }}>Marcar resuelto</span>
-                {' · '}
-                <span onClick={() => anular(m.id)} style={{ color: '#DC2626', cursor: 'pointer' }}>Anular</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* Los reportes se ven, se anulan y se cierran en Inicio > Reportes */}
+      <p style={{ fontSize: 13, color: '#5B6470', textAlign: 'center', marginTop: 16 }}>
+        Para ver los reportes, anularlos o marcar que reintegraron la mercancía, entre a Inicio y toque Reportes.
+      </p>
     </div>
   )
 }
@@ -762,21 +674,15 @@ function Mercancia({ negocio, nombreUsuario }) {
   ]
 
   return (
-    <div style={{ maxWidth: 500, margin: '0 auto', padding: 16 }}>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+    <div>
+      <div className="subtabs">
         {botones.map((b) => (
           <button
             key={b.id}
+            className={'subtab' + (modo === b.id ? ' activa' : '')}
             onClick={() => setModo(b.id)}
-            style={{
-              flex: 1, padding: '16px 6px', borderRadius: 12, fontWeight: 600, fontSize: 18,
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-              border: '1px solid ' + (modo === b.id ? '#FF6600' : '#E4E7EB'),
-              background: modo === b.id ? '#FF6600' : 'white',
-              color: modo === b.id ? 'white' : '#111417'
-            }}
           >
-            <b.Icono size={20} strokeWidth={modo === b.id ? 2.25 : 1.75} color={modo === b.id ? 'white' : '#FF6600'} />
+            <b.Icono size={16} strokeWidth={modo === b.id ? 2.25 : 1.75} color={modo === b.id ? '#FF6600' : '#A0A7B0'} />
             {b.texto}
           </button>
         ))}

@@ -256,18 +256,9 @@ function Contar({ negocio, nombreUsuario, rol, onCrearProducto }) {
       </div>
 
       {/* Bodega / Tienda (el empleado solo ve Tienda) */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+      <div className="pestanas">
         {secciones.map((s) => (
-          <button
-            key={s}
-            onClick={() => setSeccion(s)}
-            style={{
-              flex: 1, padding: 10, borderRadius: 8, fontWeight: 'bold',
-              border: seccion === s ? '2px solid #FF6600' : '2px solid #E4E7EB',
-              background: seccion === s ? '#FFF3EB' : 'white',
-              color: seccion === s ? '#FF6600' : '#5B6470'
-            }}
-          >
+          <button key={s} className={'pestana' + (seccion === s ? ' activa' : '')} onClick={() => setSeccion(s)}>
             {s}
           </button>
         ))}
@@ -281,7 +272,7 @@ function Contar({ negocio, nombreUsuario, rol, onCrearProducto }) {
           placeholder="Código de barras o nombre del producto"
           value={texto}
           onChange={(e) => setTexto(e.target.value)}
-          style={{ flex: 1, padding: 12, border: '1px solid #E4E7EB', borderRadius: 8, fontSize: 16 }}
+          className="campo-grande" style={{ flex: 1 }}
         />
         <button
           onClick={abrirCamara}

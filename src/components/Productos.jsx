@@ -446,21 +446,15 @@ function Productos({ negocio, codigoInicial, onListo }) {
   ]
 
   return (
-    <div style={{ maxWidth: 500, margin: '0 auto', padding: 16 }}>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+    <div>
+      <div className="subtabs">
         {botones.map((b) => (
           <button
             key={b.id}
+            className={'subtab' + (modo === b.id ? ' activa' : '')}
             onClick={() => setModo(b.id)}
-            style={{
-              flex: 1, padding: '16px 6px', borderRadius: 12, fontWeight: 600, fontSize: 18,
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-              border: '1px solid ' + (modo === b.id ? '#FF6600' : '#E4E7EB'),
-              background: modo === b.id ? '#FF6600' : 'white',
-              color: modo === b.id ? 'white' : '#111417'
-            }}
           >
-            <b.Icono size={20} strokeWidth={modo === b.id ? 2.25 : 1.75} color={modo === b.id ? 'white' : '#FF6600'} />
+            <b.Icono size={16} strokeWidth={modo === b.id ? 2.25 : 1.75} color={modo === b.id ? '#FF6600' : '#A0A7B0'} />
             {b.texto}
           </button>
         ))}

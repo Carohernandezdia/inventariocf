@@ -1,152 +1,60 @@
-* {
-  box-sizing: border-box;
+/* =====================================================================
+   App.css - piezas que se repiten en toda la aplicacion:
+   banner de arriba, pestañas, pestañas de carpeta, sub-pestañas y centrado de pantallas.
+   (El login esta en login.css y las pantallas del administrador en paneles.css.)
+   Colores OrCore: naranja #FF6600, cian #00CFFF, azul oscuro #111417, borde #E4E7EB.
+   ===================================================================== */
+
+/* ---------- Banner naranja compacto con linea cian ---------- */
+.banner-compacto {
+  background: #FF6600; border-bottom: 4px solid #00CFFF; color: white;
+  padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; gap: 12px;
+}
+.banner-texto { min-width: 0; }
+.banner-negocio { font-size: 16px; font-weight: 600; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.banner-usuario { font-size: 12px; opacity: 0.92; }
+.banner-botones { display: flex; gap: 8px; flex-shrink: 0; }
+.banner-boton {
+  display: flex; align-items: center; gap: 6px; height: 40px; padding: 0 12px;
+  background: transparent; color: white; border: 1px solid rgba(255, 255, 255, 0.75); border-radius: 10px;
+  font-size: 14px; font-weight: 500;
+}
+.banner-boton:hover { background: rgba(255, 255, 255, 0.18); }
+
+/* Aviso de envios pendientes a Google Sheets */
+.aviso-envios { background: #FFF0E6; color: #E65C00; font-size: 12px; padding: 6px 16px; text-align: center; }
+
+/* ---------- Pestañas (Contar / Corregir / Reporte, Bodega / Tienda) ---------- */
+.pestanas { display: flex; gap: 8px; margin-bottom: 12px; }
+.pestana {
+  flex: 1; height: 48px; padding: 0 8px; display: flex; align-items: center; justify-content: center; gap: 8px;
+  background: #FFFFFF; color: #111417; border: 1px solid #E4E7EB; border-radius: 12px;
+  font-size: 16px; font-weight: 600;
+}
+.pestana.activa { background: #FF6600; border-color: #FF6600; color: #FFFFFF; }
+
+/* ---------- Pestañas de carpeta (Mercancia / Productos) ---------- */
+.carpeta-tabs { display: flex; gap: 4px; align-items: flex-end; }
+.carpeta-tab {
+  flex: 1; height: 50px; padding: 0 8px; display: flex; align-items: center; justify-content: center; gap: 8px;
+  background: #EEF0F3; color: #5B6470; border: 1px solid #E4E7EB; border-bottom: none; border-radius: 12px 12px 0 0;
+  font-size: 16px; font-weight: 600;
+}
+.carpeta-tab.activa { height: 56px; background: #FF6600; border-color: #FF6600; color: #FFFFFF; }
+.carpeta-cuerpo {
+  background: #FFFFFF; border: 1px solid #E4E7EB; border-top: 3px solid #FF6600; border-radius: 0 0 16px 16px;
+  padding: 16px; box-shadow: 0 2px 8px rgba(17, 20, 23, 0.06);
 }
 
-body {
-  margin: 0;
-  font-family: Arial, Helvetica, sans-serif;
-  background: #FFFFFF;
-  color: #111417;
+/* ---------- Sub-pestañas con linea abajo (Ingresar / Sacar / Reportar, Crear / Editar / Eliminar) ---------- */
+.subtabs { display: flex; border-bottom: 1px solid #E4E7EB; margin-bottom: 16px; }
+.subtab {
+  flex: 1; height: 44px; padding: 0 4px; margin-bottom: -1px; display: flex; align-items: center; justify-content: center; gap: 6px;
+  background: none; color: #5B6470; border: none; border-bottom: 3px solid transparent; border-radius: 0;
+  font-size: 16px; font-weight: 600;
 }
+.subtab.activa { color: #FF6600; border-bottom-color: #FF6600; }
 
-.pantalla-login {
-  max-width: 380px;
-  margin: 80px auto;
-  padding: 24px;
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  text-align: center;
-}
-
-.pantalla-login h1 {
-  font-size: 20px;
-  margin-bottom: 4px;
-}
-
-.pantalla-login p {
-  color: #5B6470;
-  font-size: 13px;
-  margin-bottom: 18px;
-}
-
-.pantalla-login input {
-  width: 100%;
-  padding: 12px;
-  border: 1px solid #E4E7EB;
-  border-radius: 8px;
-  font-size: 16px;
-  margin-bottom: 8px;
-}
-
-.btn-comenzar {
-  width: 100%;
-  padding: 14px;
-  border: none;
-  border-radius: 8px;
-  background: #FF6600;
-  color: white;
-  font-weight: bold;
-  font-size: 16px;
-  cursor: pointer;
-  margin-top: 8px;
-}
-
-.btn-comenzar:hover {
-  background: #E65C00;
-}
-
-.btn-comenzar:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-.encabezado-user {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 13px;
-  padding: 12px 16px;
-  background: #111417;
-  color: #9aa3ad;
-}
-
-.encabezado-user button {
-  padding: 6px 12px;
-  font-size: 12px;
-  background: transparent;
-  border: 1px solid #444;
-  border-radius: 6px;
-  color: white;
-  cursor: pointer;
-}
-
-.tabs {
-  display: flex;
-  background: white;
-  border-bottom: 1px solid #E4E7EB;
-}
-
-.tab {
-  flex: 1;
-  padding: 12px 4px;
-  text-align: center;
-  font-size: 13px;
-  font-weight: bold;
-  color: #5B6470;
-  border-bottom: 3px solid transparent;
-  cursor: pointer;
-}
-
-.tab.active {
-  color: #FF6600;
-  border-color: #FF6600;
-}
-.pantalla-login {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  align-items: center;
-  padding: 24px;
-  background: white;
-}
-
-.logo-orcore {
-  font-size: 40px;
-  font-weight: 900;
-  margin-bottom: 60px;
-}
-
-.logo-or {
-  color: #111417;
-}
-
-.logo-core {
-  color: #FF6600;
-}
-
-.tarjeta-login {
-  width: 100%;
-  max-width: 380px;
-  border: 1px solid #E4E7EB;
-  border-radius: 16px;
-  padding: 24px;
-  margin-bottom: 60px;
-}
-
-.etiqueta-login {
-  font-size: 14px;
-  color: #111417;
-  display: block;
-  margin-bottom: 6px;
-}
-
-.tarjeta-login input {
-  width: 100%;
-  padding: 14px;
-  border: 1px solid #E4E7EB;
-  border-radius: 24px;
-  font-size: 16px;
-  margin-bottom: 16px;
-}
+/* ---------- Centrado de pantallas en el alto (menos Contar y Corregir, que llevan lista abajo) ---------- */
+.pantalla { min-height: calc(100svh - 190px); display: flex; flex-direction: column; }
+.pantalla-centro { margin-block: auto; width: 100%; }

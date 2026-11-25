@@ -7,7 +7,7 @@
 // EMPLEADO: solo ve la pantalla de contar (sin barra ni engranaje).
 // =====================================================================
 import { useState, useEffect } from 'react'
-import { Home, ScanBarcode, Package, Settings, Pencil, BarChart3 } from 'lucide-react'
+import { Home, ScanBarcode, Package, Settings, Pencil, BarChart3, LogOut } from 'lucide-react'
 import Login from './components/Login'
 import Contar from './components/contar'
 import Correcciones from './components/Correcciones'
@@ -15,6 +15,8 @@ import ReporteInventario from './components/ReporteInventario'
 import Dashboard from './components/Dashboard'
 import Gestion from './components/Gestion'
 import Configuracion from './components/Configuracion'
+import { EmpezarInventario, CerrarInventario } from './components/PanelInventario'
+import { estadoInventario } from './lib/inventario'
 import { procesarCola, contarPendientes } from './lib/colaSheets'
 import './App.css'
 
@@ -38,6 +40,7 @@ function App() {
   const [tab, setTab] = useState('inicio')            // inicio, contar, gestion o config
   const [subContar, setSubContar] = useState('contar') // dentro de Contar (solo admin): contar, corregir o reporte
   const [pendientes, setPendientes] = useState(0)
+  const [inv, setInv] = useState(null)               // estado del inventario: abierto o cerrado (ver lib/inventario.js)
   const [codigoNuevo, setCodigoNuevo] = useState('')   // codigo que el admin quiere crear (viene de Contar)
 
   // Al abrir: recupera la sesion guardada. Si es una sesion vieja (sin nombre), pide entrar de nuevo.
@@ -67,6 +70,19 @@ function App() {
     }
   }, [sesion])
 
+  // Estado del inventario: se pregunta al entrar y cada 20 segundos, para que si el admin lo cierra
+  // o lo abre, las pantallas de los empleados se enteren solas.
+  function refrescarInv() {
+    if (!sesion) return
+    estadoInventario(sesion.negocio, true).then(setInv).catch(() => {})
+  }
+  useEffect(() => {
+    if (!sesion) return
+    refrescarInv()
+    const reloj = setInterval(refrescarInv, 20000)
+    return () => clearInterval(reloj)
+  }, [sesion])
+
   function cerrarSesion() {
     localStorage.removeItem('sesion-inventario')
     setSesion(null)
@@ -82,57 +98,75 @@ function App() {
   // El empleado SIEMPRE ve solo Contar, pase lo que pase con la variable tab
   const pantalla = esAdmin ? tab : 'contar'
 
-  // Botones de arriba en Contar (Contar / Corregir / Reporte): icono Lucide pequeño + palabra grande
-  const botonSub = (id, texto, Icono) => (
-    <button
-      onClick={() => setSubContar(id)}
-      style={{
-        flex: 1, padding: '14px 6px', borderRadius: 12, fontWeight: 600, fontSize: 18,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-        border: '1px solid ' + (subContar === id ? '#FF6600' : '#E4E7EB'),
-        background: subContar === id ? '#FF6600' : 'white',
-        color: subContar === id ? 'white' : '#111417'
-      }}
-    >
-      <Icono size={16} strokeWidth={subContar === id ? 2.25 : 1.75} color={subContar === id ? 'white' : '#FF6600'} />
-      {texto}
-    </button>
+  // Pestaña tipo carpeta de Contar (igual que Mercancia / Productos): la abierta va en naranja
+  const carpeta = (id, texto, Icono) => {
+    const activa = subContar === id
+    return (
+      <button className={'carpeta-tab' + (activa ? ' activa' : '')} onClick={() => setSubContar(id)}>
+        <Icono size={20} strokeWidth={activa ? 2.25 : 1.75} color={activa ? 'white' : '#FF6600'} />
+        {texto}
+      </button>
+    )
+  }
+
+  // Centra el contenido en la pantalla (menos en Contar y Corregir, donde abajo va una lista)
+  const centrada = (contenido) => (
+    <div className="pantalla"><div className="pantalla-centro">{contenido}</div></div>
   )
 
   return (
     <div>
-      <div className="encabezado-user">
-        <span>
-          <b>{sesion.negocio.nombre_negocio}</b> · {sesion.nombreUsuario} ({sesion.rol})
-        </span>
-        <span style={{ display: 'flex', gap: 8 }}>
-          {esAdmin && <button onClick={() => setTab('config')} title="Configuración" style={{ display: 'flex', alignItems: 'center' }}><Settings size={16} strokeWidth={1.75} /></button>}
-          <button onClick={cerrarSesion}>Salir</button>
-        </span>
+      {/* Banner naranja compacto con linea cian (igual que las otras aplicaciones de OrCore) */}
+      <div className="banner-compacto">
+        <div className="banner-texto">
+          <div className="banner-negocio">{sesion.negocio.nombre_negocio}</div>
+          <div className="banner-usuario">{sesion.nombreUsuario} · {sesion.rol === 'admin' ? 'administrador' : 'empleado'}</div>
+        </div>
+        <div className="banner-botones">
+          {esAdmin && (
+            <button className="banner-boton" onClick={() => setTab('config')} aria-label="Configuración">
+              <Settings size={18} strokeWidth={1.75} />
+            </button>
+          )}
+          <button className="banner-boton" onClick={cerrarSesion}>
+            <LogOut size={18} strokeWidth={1.75} /> Salir
+          </button>
+        </div>
       </div>
 
       {pendientes > 0 && (
-        <div style={{ background: '#FFF3EB', color: '#FF6600', fontSize: 12, padding: '6px 16px', textAlign: 'center' }}>
+        <div className="aviso-envios">
           ⏳ {pendientes} envío(s) a Google Sheets en camino. Se reintentan solos, no cierres la página.
         </div>
       )}
 
       <main style={{ maxWidth: 1000, margin: '0 auto', padding: 12, paddingBottom: esAdmin ? 90 : 12 }}>
         {/* Inicio = Dashboard (solo admin) */}
-        {pantalla === 'inicio' && <Dashboard negocio={sesion.negocio} />}
+        {pantalla === 'inicio' && centrada(<Dashboard negocio={sesion.negocio} nombreUsuario={sesion.nombreUsuario} />)}
 
-        {/* Contar: el admin ademas tiene el boton Corregir (las correcciones son del conteo del dia) */}
+        {/* Contar: el admin ve 3 pestañas tipo carpeta (Contar / Corregir / Reporte), igual que Mercancia / Productos.
+            El empleado ve solo la pantalla de contar, sin pestañas. */}
         {pantalla === 'contar' && (
-          <div>
+          <div style={{ maxWidth: 720, margin: '0 auto' }}>
             {esAdmin && (
-              <div style={{ display: 'flex', gap: 8, marginBottom: 12, maxWidth: 720, marginLeft: 'auto', marginRight: 'auto' }}>
-                {botonSub('contar', 'Contar', ScanBarcode)}
-                {botonSub('corregir', 'Corregir', Pencil)}
-                {botonSub('reporte', 'Reporte', BarChart3)}
+              <div className="carpeta-tabs">
+                {carpeta('contar', 'Contar', ScanBarcode)}
+                {carpeta('corregir', 'Corregir', Pencil)}
+                {carpeta('reporte', 'Reporte', BarChart3)}
               </div>
             )}
-            <div style={{ maxWidth: 720, margin: '0 auto' }}>
-              {(!esAdmin || subContar === 'contar') && (
+            <div className={esAdmin ? 'carpeta-cuerpo' : ''}>
+              {/* Inventario cerrado: no se puede contar ni corregir (el admin puede empezar uno nuevo) */}
+              {inv && !inv.abierto && (!esAdmin || subContar !== 'reporte') && (
+                <EmpezarInventario negocio={sesion.negocio} nombreUsuario={sesion.nombreUsuario} esAdmin={esAdmin} inv={inv} onCambio={refrescarInv} />
+              )}
+
+              {/* Boton grande para CERRAR el inventario (solo admin, mientras esta abierto) */}
+              {esAdmin && inv && inv.abierto && subContar === 'contar' && (
+                <CerrarInventario negocio={sesion.negocio} nombreUsuario={sesion.nombreUsuario} inv={inv} onCambio={refrescarInv} />
+              )}
+
+              {(!inv || inv.abierto) && (!esAdmin || subContar === 'contar') && (
                 <Contar
                   negocio={sesion.negocio}
                   nombreUsuario={sesion.nombreUsuario}
@@ -140,14 +174,14 @@ function App() {
                   onCrearProducto={(c) => { setCodigoNuevo(c); setTab('gestion') }}
                 />
               )}
-              {esAdmin && subContar === 'corregir' && <Correcciones negocio={sesion.negocio} nombreUsuario={sesion.nombreUsuario} />}
+              {esAdmin && inv && inv.abierto && subContar === 'corregir' && <Correcciones negocio={sesion.negocio} nombreUsuario={sesion.nombreUsuario} />}
               {esAdmin && subContar === 'reporte' && <ReporteInventario negocio={sesion.negocio} />}
             </div>
           </div>
         )}
 
         {/* Mercancia: junta Productos y Mercancia */}
-        {pantalla === 'gestion' && (
+        {pantalla === 'gestion' && centrada(
           <Gestion
             key={codigoNuevo}
             negocio={sesion.negocio}
@@ -158,7 +192,7 @@ function App() {
         )}
 
         {/* Configuracion (engranaje de arriba) */}
-        {pantalla === 'config' && <Configuracion negocio={sesion.negocio} onVolver={() => setTab('inicio')} />}
+        {pantalla === 'config' && centrada(<Configuracion negocio={sesion.negocio} onVolver={() => setTab('inicio')} />)}
       </main>
 
       {/* Barra inferior: solo para el administrador. Los empleados solo ven la pantalla de contar. */}

@@ -1,3 +1,4 @@
+
 // =====================================================================
 // Pantalla "Inicio" (solo admin).
 //   - Buscador grande: codigo de barras o nombre -> cuanto hay en Bodega, precio y valor.
@@ -11,6 +12,7 @@ import { ArrowDownToLine, ArrowUpFromLine, AlertTriangle, Download, RefreshCw, A
 import { supabase } from '../lib/supabaseClient'
 import { generarReporteGeneral } from '../lib/reporteGeneral'
 import BuscadorMercancia from './BuscadorMercancia'
+import ReporteItem from './ReporteItem'
 import '../paneles.css'
 
 const NARANJA = '#FF6600'
@@ -28,7 +30,7 @@ function plata(n) {
   return '$' + Math.round(Number(n) || 0).toLocaleString('es-CO')
 }
 
-function Dashboard({ negocio }) {
+function Dashboard({ negocio, nombreUsuario }) {
   const [historial, setHistorial] = useState([])
   const [vista, setVista] = useState('') // '' = inicio, o 'ingresos' / 'salidas' / 'reportes'
   const [reportes, setReportes] = useState([])
@@ -55,7 +57,7 @@ function Dashboard({ negocio }) {
     try {
       const rep = await supabase
         .from('reportes_mercancia')
-        .select('id, nombre, cantidad, unidad_medida, tipo, ubicacion, fecha_vencimiento')
+        .select('id, codigo, nombre, cantidad, unidad_medida, tipo, ubicacion, fecha_vencimiento, nota, usuario, creado_en')
         .eq('negocio', negocio.codigo_negocio).eq('anulado', false).eq('estado', 'pendiente')
         .order('creado_en', { ascending: false }).limit(200)
       setReportes(rep.error ? [] : rep.data || [])
@@ -135,9 +137,7 @@ function Dashboard({ negocio }) {
                   {TIPOS_REPORTE[k]} ({lista.length})
                 </div>
                 {lista.map((r) => (
-                  <div key={r.id} style={{ fontSize: 12, color: '#5B6470', borderBottom: '1px dashed #E4E7EB', padding: '5px 0' }}>
-                    {r.nombre} · {r.cantidad} {r.unidad_medida} · {r.ubicacion}{r.fecha_vencimiento ? ' · vence ' + r.fecha_vencimiento : ''}
-                  </div>
+                  <ReporteItem key={r.id} r={r} negocio={negocio} nombreUsuario={nombreUsuario} onCambio={calcular} />
                 ))}
               </div>
             )
@@ -158,7 +158,7 @@ function Dashboard({ negocio }) {
       </div>
 
       {/* Buscador de mercancia */}
-      <BuscadorMercancia negocio={negocio} />
+      <BuscadorMercancia negocio={negocio} nombreUsuario={nombreUsuario} />
 
       {/* Botones que abren el historial: palabra grande, icono pequeño en naranja */}
       <div className="botones-historial">

@@ -4,12 +4,15 @@
 //
 // Saldo de Bodega = lo contado en Bodega (si el conteo sigue abierto)
 //                 + el punto de partida guardado al cerrar el inventario
-//                 + ingresos - salidas.
+//                 + ingresos (y reintegros de reportes) - salidas - lo descontado por reportes.
+// Los ingresos directos a Tienda NO suman a Bodega. Los reportes pendientes se ven y se cierran desde aqui.
 // Asi funciona igual durante el conteo y despues de cerrarlo.
 // =====================================================================
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { Search, X, Warehouse, Store } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
+import { MARCA, TIPOS_PLURAL, cargarReportes, unidadesDescontadas, descuenta } from './ReporteItem'
+import { calcularSaldos } from '../lib/inventario'
 import '../paneles.css'
 
 const NARANJA = '#FF6600'
@@ -29,7 +32,7 @@ function num(n) {
   return (Math.round((Number(n) || 0) * 1000) / 1000).toLocaleString('es-CO')
 }
 
-function BuscadorMercancia({ negocio }) {
+function BuscadorMercancia({ negocio, nombreUsuario }) {
   const neg = negocio.codigo_negocio
   const [productos, setProductos] = useState([])
   const [estado, setEstado] = useState('Cargando productos...')
@@ -38,6 +41,7 @@ function BuscadorMercancia({ negocio }) {
   const [elegido, setElegido] = useState(null)   // producto que se esta viendo
   const [saldo, setSaldo] = useState(null)       // cuentas de ese producto
   const [consultando, setConsultando] = useState(false)
+  const [reportes, setReportes] = useState([])    // reportes pendientes de ese producto
   const inputRef = useRef(null)
 
   // Al abrir: trae los productos de 1000 en 1000 (Supabase entrega maximo 1000 por consulta)
@@ -94,40 +98,30 @@ function BuscadorMercancia({ negocio }) {
     setTexto(p.codigo)
     setSaldo(null)
     setConsultando(true)
-    try {
-      const [conteos, mercancia] = await Promise.all([
-        supabase.from('movimientos').select('seccion, cantidad')
-          .eq('negocio', neg).eq('codigo', p.codigo).eq('anulado', false),
-        supabase.from('movimientos_mercancia').select('tipo, destino, cantidad')
-          .eq('negocio', neg).eq('codigo', p.codigo).eq('anulado', false)
-      ])
-      if (conteos.error) throw new Error(conteos.error.message)
-      if (mercancia.error) throw new Error(mercancia.error.message)
+    await calcularCuentas(p)
+    setConsultando(false)
+  }
 
-      const r = { contadoBodega: 0, contadoTienda: 0, inicialBodega: 0, ingresos: 0, salidas: 0 }
-      conteos.data.forEach((m) => {
-        const c = Number(m.cantidad) || 0
-        if (m.seccion === 'Bodega') r.contadoBodega += c
-        if (m.seccion === 'Tienda') r.contadoTienda += c
-      })
-      mercancia.data.forEach((m) => {
-        const c = Number(m.cantidad) || 0
-        if (m.tipo === 'inventario' && m.destino === 'Bodega') r.inicialBodega += c
-        if (m.tipo === 'ingreso') r.ingresos += c
-        if (m.tipo === 'salida') r.salidas += c
-      })
-      r.bodega = r.contadoBodega + r.inicialBodega + r.ingresos - r.salidas
+  // Trae conteos, movimientos y reportes pendientes de ese producto
+  async function calcularCuentas(p) {
+    try {
+      // Primero los reportes: si hay que reparar algun descuento, queda hecho antes de sumar los movimientos
+      const reps = await cargarReportes({ codigo_negocio: neg }, p.codigo, 100)
+      // Las cuentas (stock inicial, ingresos, salidas, lo contado...) las hace lib/inventario.js,
+      // que sabe si el inventario esta abierto o cerrado
+      const r = await calcularSaldos({ codigo_negocio: neg }, p.codigo, MARCA)
       setSaldo(r)
+      setReportes(reps || [])
     } catch (e) {
       setSaldo({ error: e.message })
     }
-    setConsultando(false)
   }
 
   function limpiar() {
     setTexto('')
     setElegido(null)
     setSaldo(null)
+    setReportes([])
     setCoincidencias([])
     if (inputRef.current) inputRef.current.focus()
   }
@@ -202,13 +196,41 @@ function BuscadorMercancia({ negocio }) {
                 <div><span>Valor de lo que hay en Bodega</span><b>{plata(saldo.bodega * precio)}</b></div>
               </div>
 
-              {/* Como se llega a ese numero */}
+              {/* Todo en un solo cuadro: como se llega a ese numero + lo reportado (en rojo) */}
               <div className="ficha-detalle">
-                {saldo.contadoBodega !== 0 && <div>Contado en Bodega: {num(saldo.contadoBodega)}</div>}
-                {saldo.inicialBodega !== 0 && <div>Punto de partida: {num(saldo.inicialBodega)}</div>}
-                <div>Ingresos: {num(saldo.ingresos)}</div>
+                {saldo.inicialBodega !== 0 && <div>Stock inicial: {num(saldo.inicialBodega)}</div>}
+                {!saldo.comparando && saldo.contadoBodega !== 0 && <div>Contado en Bodega (provisional): {num(saldo.contadoBodega)}</div>}
+                <div>Ingresos: {num(saldo.ingresos + saldo.reintegros)}</div>
                 <div>Salidas: {num(saldo.salidas)}</div>
+                {saldo.ingresoTienda > 0 && <div>Entró directo a Tienda: {num(saldo.ingresoTienda)}</div>}
+
+                {/* Reportes en rojo: "6 unidades vencidas (descontadas)". El detalle vive en Mercancia > Reportar */}
+                {Object.keys(TIPOS_PLURAL).map((k) => {
+                  const lista = reportes.filter((r) => r.tipo === k)
+                  if (lista.length === 0) return null
+                  const unidades = lista.reduce((t, r) => t + (descuenta(k) ? unidadesDescontadas(r) : Number(r.cantidad)), 0)
+                  const pend = lista.filter((r) => r.estado === 'pendiente').length
+                  if (unidades <= 0 && pend === 0) return null
+                  return (
+                    <div key={k} style={{ color: '#DC2626' }}>
+                      {num(unidades)} {medida} {TIPOS_PLURAL[k]}{descuenta(k) ? ' (descontadas)' : ''}
+                      {pend > 0 ? ' · ' + pend + ' pendiente' + (pend > 1 ? 's' : '') : ''}
+                    </div>
+                  )
+                })}
               </div>
+
+              {/* Inventario nuevo abierto: lo contado se compara con lo que deberia haber */}
+              {saldo.comparando && (
+                <div className="ficha-detalle" style={{ marginTop: 4 }}>
+                  <div>Contado en este inventario (Bodega): <b>{num(saldo.contadoBodega)}</b></div>
+                  <div>Debería haber: <b>{num(saldo.esperadoBodega)}</b></div>
+                  <div style={{ color: saldo.diferenciaBodega === 0 ? '#16A34A' : '#DC2626' }}>
+                    Diferencia: <b>{saldo.diferenciaBodega > 0 ? '+' : ''}{num(saldo.diferenciaBodega)}</b>
+                    {saldo.diferenciaBodega < 0 ? ' (faltan)' : saldo.diferenciaBodega > 0 ? ' (sobran)' : ''}
+                  </div>
+                </div>
+              )}
 
               <div className="ficha-otro">
                 <Store size={16} strokeWidth={1.75} color="#A0A7B0" />

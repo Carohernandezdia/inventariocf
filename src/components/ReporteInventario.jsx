@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react'
 import { Warehouse, Store, Download, RefreshCw } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { generarReporteInventario } from '../lib/reporteInventario'
+import { estadoInventario } from '../lib/inventario'
 import '../paneles.css'
 
 const NARANJA = '#FF6600'
@@ -30,6 +31,7 @@ async function leerTodo(armarConsulta) {
 
 function ReporteInventario({ negocio }) {
   const [datos, setDatos] = useState(null)
+  const [inv, setInv] = useState(null)             // inventario abierto o cerrado
   const [cargando, setCargando] = useState(false)
   const [bajando, setBajando] = useState(false)
   const [mensaje, setMensaje] = useState('')
@@ -39,10 +41,15 @@ function ReporteInventario({ negocio }) {
     setCargando(true)
     setMensaje('')
     try {
-      const movs = await leerTodo(() =>
-        supabase.from('movimientos').select('seccion, codigo, cantidad')
-          .eq('negocio', negocio.codigo_negocio).eq('anulado', false).order('id')
-      )
+      // Solo lo contado en ESTE inventario (desde que empezo, y hasta que cerro si ya cerro)
+      const estado = await estadoInventario(negocio, true)
+      setInv(estado)
+      const movs = await leerTodo(() => {
+        let q = supabase.from('movimientos').select('seccion, codigo, cantidad')
+          .eq('negocio', negocio.codigo_negocio).eq('anulado', false).gte('creado_en', estado.desde)
+        if (estado.hasta) q = q.lte('creado_en', estado.hasta)
+        return q.order('id')
+      })
       const prods = await leerTodo(() =>
         supabase.from('productos').select('codigo, precio_de_compra')
           .eq('establecimiento', negocio.codigo_negocio).order('codigo')
@@ -88,7 +95,9 @@ function ReporteInventario({ negocio }) {
   return (
     <div>
       <div className="pantalla-cabeza">
-        <div className="pantalla-titulo" style={{ fontSize: 20 }}>Lo contado</div>
+        <div className="pantalla-titulo" style={{ fontSize: 20 }}>
+          Lo contado{inv && !inv.sinTabla ? ' · Inventario ' + inv.numero + (inv.abierto ? '' : ' (cerrado)') : ''}
+        </div>
         <button className="boton-chico" onClick={calcular} disabled={cargando} style={{ opacity: cargando ? 0.6 : 1 }}>
           <RefreshCw size={16} strokeWidth={1.75} color={NARANJA} /> {cargando ? 'Calculando...' : 'Actualizar'}
         </button>
@@ -131,7 +140,7 @@ function ReporteInventario({ negocio }) {
           Un Excel con lo que se ha contado: el total en Bodega y Tienda, cada producto con su valor, los que hay que revisar,
           quién envió qué, los productos que nadie ha contado y lo que se ha corregido.
         </p>
-        <button className="boton-reporte" onClick={bajar} disabled={bajando} style={{ background: NARANJA, color: 'white', marginTop: 0 }}>
+        <button className="boton-reporte" onClick={bajar} disabled={bajando} style={{ background: NARANJA, color: 'white' }}>
           <Download size={16} strokeWidth={1.75} /> {bajando ? 'Preparando el reporte...' : 'Descargar reporte del inventario'}
         </button>
         {mensaje && <p style={{ fontSize: 14, color: mensaje.startsWith('✓') ? '#16A34A' : '#5B6470' }}>{mensaje}</p>}

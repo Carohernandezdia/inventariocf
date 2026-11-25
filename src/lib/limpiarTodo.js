@@ -4,6 +4,7 @@
 //   - conteos (lo que contaron los muchachos)
 //   - ingresos, salidas y saldos de inventario
 //   - reportes de mercancia
+//   - los inventarios abiertos/cerrados (ciclo de inventario)
 //   - Google Sheets: Bodega, Tienda y Log quedan vacios (con su encabezado)
 // No se puede deshacer. La pantalla de Configuracion pide antes el respaldo y la clave del administrador.
 // =====================================================================
@@ -26,6 +27,9 @@ export async function limpiarTodo(negocio, avisar) {
     const r = await supabase.from(tablas[i][0]).delete().eq(tablas[i][1], neg)
     if (r.error) throw new Error(tablas[i][2] + ': ' + r.error.message)
   }
+
+  // El ciclo de inventarios vuelve a empezar (si la tabla todavia no existe, se ignora)
+  await supabase.from('inventarios').delete().eq('negocio', neg)
 
   decir('Limpiando Google Sheets...')
   limpiarCola(neg) // descarta envios pendientes de este celular
